@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>כרטיס דיגיטלי - ג'ימבורי בעלי זהב</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #FFC107;
+            --secondary: #FF5722;
+            --accent: #4CAF50;
+            --light: #FFF8E1;
+            --dark: #5D4037;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .ticket-container {
+            max-width: 500px;
+            margin: 20px auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .ticket {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            overflow: hidden;
+            position: relative;
+            transform-style: preserve-3d;
+            perspective: 1000px;
+            margin-bottom: 30px;
+        }
+        
+        .ticket-header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .ticket-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+        
+        .ticket-header p {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        
+        .ticket-body {
+            padding: 20px;
+        }
+        
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        #qrcode {
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .ticket-info {
+            margin-top: 25px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px dashed #eee;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: var(--dark);
+        }
+        
+        .info-value {
+            text-align: left;
+            color: #333;
+        }
+        
+        .entries-left {
+            text-align: center;
+            margin: 25px 0 15px;
+        }
+        
+        .entries-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        
+        .entries-text {
+            font-size: 1rem;
+            color: #666;
+        }
+        
+        .valid-until {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        
+        .ticket-footer {
+            background-color: #f9f9f9;
+            padding: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #777;
+            border-top: 1px solid #eee;
+        }
+        
+        .decoration {
+            position: absolute;
+            z-index: 0;
+        }
+        
+        .circle1 {
+            width: 150px;
+            height: 150px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            top: -50px;
+            right: -50px;
+        }
+        
+        .circle2 {
+            width: 100px;
+            height: 100px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            bottom: 20px;
+            left: -30px;
+        }
+        
+        .status-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            z-index: 2;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        
+        .status-active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .status-used {
+            background-color: #F44336;
+            color: white;
+        }
+        
+        .ticket-entry-history {
+            margin-top: 20px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .entry-history-header {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            font-weight: bold;
+        }
+        
+        .entry-list {
+            padding: 10px 0;
+        }
+        
+        .entry-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .entry-item:last-child {
+            border-bottom: none;
+        }
+        
+        .entry-date {
+            font-weight: bold;
+        }
+        
+        .entry-time {
+            color: #666;
+        }
+        
+        .entry-item.unused {
+            color: #999;
+        }
+        
+        .entry-item.unused .entry-date {
+            font-weight: normal;
+        }
+        
+        @media (max-width: 600px) {
+            .ticket-container {
+                margin: 10px;
+                width: calc(100% - 20px);
+            }
+        }
+        
+        /* תמיכה במסכים קטנים */
+        @media (max-width: 400px) {
+            .ticket-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .entries-number {
+                font-size: 2.5rem;
+            }
+        }
+        
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: var(--primary);
+            opacity: 0.7;
+            top: 0;
+            animation: fall linear;
+        }
+        
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ticket-container">
+        <div class="ticket">
+            <div class="status-badge status-active" id="status-badge">פעיל</div>
+            
+            <div class="decoration circle1"></div>
+            <div class="decoration circle2"></div>
+            
+            <div class="ticket-header">
+                <h1>ג'ימבורי בעלי זהב</h1>
+                <p id="ticket-type">כרטיסייה - 8 כניסות</p>
+            </div>
+            
+            <div class="ticket-body">
+                <div class="entries-left">
+                    <div class="entries-number" id="entries-count">8</div>
+                    <div class="entries-text">כניסות שנותרו</div>
+                </div>
+                
+                <div class="qr-container">
+                    <div id="qrcode"></div>
+                </div>
+                
+                <div class="ticket-info">
+                    <div class="info-row">
+                        <div class="info-label">שם:</div>
+                        <div class="info-value" id="child-name">מיכל כהן</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">מספר כרטיס:</div>
+                        <div class="info-value" id="ticket-id">T1002</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">תאריך רכישה:</div>
+                        <div class="info-value" id="purchase-date">25/02/2025</div>
+                    </div>
+                </div>
+                
+                <div class="valid-until" id="valid-until">
+                    בתוקף עד 25/02/2026
+                </div>
+            </div>
+            
+            <div class="ticket-footer">
+                יש להציג את הכרטיס בכניסה לג'ימבורי
+            </div>
+        </div>
+        
+        <div class="ticket-entry-history" id="entry-history">
+            <div class="entry-history-header">
+                היסטוריית כניסות
+            </div>
+            <div class="entry-list" id="entry-list">
+                <!-- יתמלא דינמית -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // פונקציה לקבלת פרמטרים מה-URL
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+        
+        // קבלת נתוני הכרטיס מה-URL
+        var ticketId = getUrlParameter('id') || 'T1001';
+        var childName = getUrlParameter('name') || 'אורח';
+        var ticketType = getUrlParameter('type') || 'כרטיס בודד';
+        var entriesLeft = parseInt(getUrlParameter('entries') || '1');
+        
+        // עדכון נתוני הכרטיס בדף
+        document.getElementById('ticket-id').textContent = ticketId;
+        document.getElementById('child-name').textContent = childName;
+        document.getElementById('entries-count').textContent = entriesLeft;
+        document.getElementById('ticket-type').textContent = ticketType;
+        
+        // הגדרת הסטטוס
+        if (entriesLeft <= 0) {
+            document.getElementById('status-badge').className = 'status-badge status-used';
+            document.getElementById('status-badge').textContent = 'נוצל';
+        }
+        
+        // הגדרת תאריך רכישה ותוקף
+        var today = new Date();
+        var purchaseDate = today.toLocaleDateString('he-IL');
+        document.getElementById('purchase-date').textContent = purchaseDate;
+        
+        var validUntil = new Date();
+        validUntil.setFullYear(validUntil.getFullYear() + 1);
+        document.getElementById('valid-until').textContent = 'בתוקף עד ' + validUntil.toLocaleDateString('he-IL');
+        
+        // יצירת קוד QR
+        var qrCodeContent = `GYMBOREE-${ticketId}-${ticketType}-${entriesLeft}`;
+        var qrcode = new QRCode(document.getElementById("qrcode"), {
+            text: qrCodeContent,
+            width: 180,
+            height: 180,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // מילוי היסטוריית כניסות לדוגמה (במערכת אמיתית יגיע מהשרת)
+        function fillEntryHistory() {
+            var entryList = document.getElementById('entry-list');
+            
+            // אם זה כרטיס בודד
+            if (ticketType.includes('בודד')) {
+                if (entriesLeft === 0) {
+                    // נוצל
+                    var entryDate = new Date();
+                    entryDate.setDate(entryDate.getDate() - Math.floor(Math.random() * 7));
+                    
+                    var entryItem = document.createElement('div');
+                    entryItem.className = 'entry-item';
+                    entryItem.innerHTML = `
+                        <div class="entry-date">${entryDate.toLocaleDateString('he-IL')}</div>
+                        <div class="entry-time">${entryDate.getHours()}:${String(entryDate.getMinutes()).padStart(2, '0')}</div>
+                    `;
+                    entryList.appendChild(entryItem);
+                } else {
+                    // לא נוצל
+                    var entryItem = document.createElement('div');
+                    entryItem.className = 'entry-item unused';
+                    entryItem.innerHTML = `
+                        <div class="entry-date">טרם נוצל</div>
+                        <div class="entry-time"></div>
+                    `;
+                    entryList.appendChild(entryItem);
+                }
+            } else {
+                // כרטיסייה
+                var totalEntries = 8;
+                var usedEntries = totalEntries - entriesLeft;
+                
+                for (var i = 0; i < totalEntries; i++) {
+                    var entryItem = document.createElement('div');
+                    
+                    if (i < usedEntries) {
+                        // כניסה שנוצלה
+                        var entryDate = new Date();
+                        entryDate.setDate(entryDate.getDate() - (usedEntries - i));
+                        
+                        entryItem.className = 'entry-item';
+                        entryItem.innerHTML = `
+                            <div class="entry-date">כניסה ${i+1} - ${entryDate.toLocaleDateString('he-IL')}</div>
+                            <div class="entry-time">${entryDate.getHours()}:${String(entryDate.getMinutes()).padStart(2, '0')}</div>
+                        `;
+                    } else {
+                        // כניסה שטרם נוצלה
+                        entryItem.className = 'entry-item unused';
+                        entryItem.innerHTML = `
+                            <div class="entry-date">כניסה ${i+1} - טרם נוצל</div>
+                            <div class="entry-time"></div>
+                        `;
+                    }
+                    
+                    entryList.appendChild(entryItem);
+                }
+            }
+        }
+        
+        // הפעלת מילוי היסטוריית כניסות
+        fillEntryHistory();
+        
+        // אפקט קונפטי לכרטיס חדש (רק אם זה כרטיס פעיל וחדש)
+        function createConfetti() {
+            if (entriesLeft > 0 && (ticketType.includes('בודד') || entriesLeft === 8)) {
+                for (var i = 0; i < 50; i++) {
+                    var confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    
+                    // צבעים אקראיים
+                    var colors = ['#FFC107', '#FF5722', '#4CAF50', '#2196F3', '#9C27B0'];
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    // מיקום אקראי
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    
+                    // גודל אקראי
+                    var size = Math.random() * 10 + 5;
+                    confetti.style.width = size + 'px';
+                    confetti.style.height = size + 'px';
+                    
+                    // מהירות נפילה אקראית
+                    var duration = Math.random() * 3 + 2;
+                    confetti.style.animationDuration = duration + 's';
+                    
+                    document.body.appendChild(confetti);
+                    
+                    // הסרת הקונפטי לאחר הנפילה
+                    setTimeout(function(element) {
+                        return function() {
+                            if (document.body.contains(element)) {
+                                document.body.removeChild(element);
+                            }
+                        };
+                    }(confetti), duration * 1000);
+                }
+            }
+        }
+        
+        // הפעלת אפקט הקונפטי
+        window.addEventListener('load', createConfetti);
+    </script>
+</body>
+</html>

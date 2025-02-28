@@ -327,7 +327,7 @@
 </head>
 <body>
     <header>
-        <h1>ג'ימבורי בעלי זהב</h1>
+        <h1>ג'ימבורי עלי זהב</h1>
         <p>מערכת סריקת כרטיסים</p>
         <div class="user-info" id="userInfo" style="display: none;">
             <span id="userName">שם משתמש</span>
@@ -378,3 +378,62 @@
             <h2>סריקות אחרונות</h2>
             <div id="scanHistory">
                 <div class="loader">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="floating-button">
+            <button id="scanButton" class="btn">
+                <i class="fas fa-qrcode"></i>
+                התחל סריקה
+            </button>
+        </div>
+        </div>
+        
+        <script>
+            // קבועים להתחברות
+            const VALID_CREDENTIALS = {
+                'scanner1': 'goldleaf',
+                'scanner2': 'goldleaf',
+                'scanner3': 'goldleaf',
+                'admin': 'goldleaf'
+            };
+        
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                if (VALID_CREDENTIALS[username] && VALID_CREDENTIALS[username] === password) {
+                    localStorage.setItem('loggedInUser', username);
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('mainScreen').style.display = 'block';
+                    document.getElementById('userInfo').style.display = 'flex';
+                    document.getElementById('userName').textContent = username;
+                } else {
+                    alert('שם משתמש או סיסמה שגויים');
+                }
+            });
+        
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                localStorage.removeItem('loggedInUser');
+                document.getElementById('loginScreen').style.display = 'block';
+                document.getElementById('mainScreen').style.display = 'none';
+                document.getElementById('userInfo').style.display = 'none';
+                document.getElementById('loginForm').reset();
+            });
+        
+            window.onload = function() {
+                const loggedInUser = localStorage.getItem('loggedInUser');
+                if (loggedInUser) {
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('mainScreen').style.display = 'block';
+                    document.getElementById('userInfo').style.display = 'flex';
+                    document.getElementById('userName').textContent = loggedInUser;
+                }
+            };
+        </script>
+        </body>
+        </html>

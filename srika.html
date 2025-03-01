@@ -323,6 +323,62 @@
             gap: 10px;
             margin-bottom: 20px;
         }
+        
+        .success-message {
+            color: var(--success);
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .error-message {
+            color: var(--danger);
+            background-color: #ffebee;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .scan-result {
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .scan-result.success {
+            background-color: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            display: block;
+        }
+        
+        .scan-result.error {
+            background-color: #ffebee;
+            border: 1px solid #ffcdd2;
+            display: block;
+        }
+        
+        .scan-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        
+        .admin-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -374,6 +430,18 @@
             </div>
         </div>
         
+        <div class="card" id="scannerCard">
+            <h2>סורק כרטיסים</h2>
+            <p>יש לכוון את המצלמה לקוד QR של הכרטיס</p>
+            <div id="reader"></div>
+            
+            <div id="scanResult" class="scan-result">
+                <!-- תוצאת הסריקה תוצג כאן -->
+            </div>
+            
+            <button id="scanAgainButton" class="btn" style="display:none;">סרוק שוב</button>
+        </div>
+        
         <div class="card scan-history-card">
             <h2>סריקות אחרונות</h2>
             <div id="scanHistory">
@@ -383,57 +451,363 @@
             </div>
         </div>
         
+        <div class="card admin-section" id="adminSection">
+            <h2>כלי ניהול</h2>
+            <div class="input-group">
+                <label for="revertCode">החזרת כרטיס למצב פעיל</label>
+                <input type="text" id="revertCode" placeholder="הזן קוד QR שנסרק בטעות...">
+            </div>
+            <button id="revertButton" class="btn">החזר למצב פעיל</button>
+            <div id="revertResult"></div>
+        </div>
+        
         <div class="floating-button">
             <button id="scanButton" class="btn">
                 <i class="fas fa-qrcode"></i>
                 התחל סריקה
             </button>
         </div>
-        </div>
+    </div>
         
-        <script>
-            // קבועים להתחברות
-            const VALID_CREDENTIALS = {
-                'scanner1': 'goldleaf',
-                'scanner2': 'goldleaf',
-                'scanner3': 'goldleaf',
-                'admin': 'goldleaf'
-            };
+    <script>
+        // קבועים להתחברות
+        const VALID_CREDENTIALS = {
+            'scanner1': 'goldleaf',
+            'scanner2': 'goldleaf',
+            'scanner3': 'goldleaf',
+            'admin': 'goldleaf'
+        };
+
+        // משתנים גלובליים
+        let html5QrcodeScanner;
+        let isScanning = false;
         
-            document.getElementById('loginForm').addEventListener('submit', function(e) {
-                e.preventDefault();
+        // פונקציה להתחברות
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (VALID_CREDENTIALS[username] && VALID_CREDENTIALS[username] === password) {
+                localStorage.setItem('loggedInUser', username);
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainScreen').style.display = 'block';
+                document.getElementById('userInfo').style.display = 'flex';
+                document.getElementById('userName').textContent = username;
                 
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-                
-                if (VALID_CREDENTIALS[username] && VALID_CREDENTIALS[username] === password) {
-                    localStorage.setItem('loggedInUser', username);
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('mainScreen').style.display = 'block';
-                    document.getElementById('userInfo').style.display = 'flex';
-                    document.getElementById('userName').textContent = username;
+                // הצגת אזור הניהול רק למנהלים
+                if (username === 'admin') {
+                    document.getElementById('adminSection').style.display = 'block';
                 } else {
-                    alert('שם משתמש או סיסמה שגויים');
+                    document.getElementById('adminSection').style.display = 'none';
                 }
-            });
+                
+                // אתחול הדף
+                initPage();
+            } else {
+                alert('שם משתמש או סיסמה שגויים');
+            }
+        });
         
-            document.getElementById('logoutBtn').addEventListener('click', function() {
-                localStorage.removeItem('loggedInUser');
-                document.getElementById('loginScreen').style.display = 'block';
-                document.getElementById('mainScreen').style.display = 'none';
-                document.getElementById('userInfo').style.display = 'none';
-                document.getElementById('loginForm').reset();
-            });
+        // פונקציית התנתקות
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('loggedInUser');
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('mainScreen').style.display = 'none';
+            document.getElementById('userInfo').style.display = 'none';
+            document.getElementById('loginForm').reset();
+            
+            // סגירת סורק אם פתוח
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
+            }
+        });
         
-            window.onload = function() {
-                const loggedInUser = localStorage.getItem('loggedInUser');
-                if (loggedInUser) {
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('mainScreen').style.display = 'block';
-                    document.getElementById('userInfo').style.display = 'flex';
-                    document.getElementById('userName').textContent = loggedInUser;
+        // פונקציית אתחול בטעינת הדף
+        window.onload = function() {
+            const loggedInUser = localStorage.getItem('loggedInUser');
+            if (loggedInUser) {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainScreen').style.display = 'block';
+                document.getElementById('userInfo').style.display = 'flex';
+                document.getElementById('userName').textContent = loggedInUser;
+                
+                // הצגת אזור הניהול רק למנהלים
+                if (loggedInUser === 'admin') {
+                    document.getElementById('adminSection').style.display = 'block';
+                } else {
+                    document.getElementById('adminSection').style.display = 'none';
                 }
-            };
-        </script>
-        </body>
-        </html>
+                
+                // אתחול הדף
+                initPage();
+            }
+        };
+        
+        // פונקציית אתחול הדף
+        function initPage() {
+            loadStats();
+            loadScanHistory();
+            
+            // אירועים לכפתורים
+            document.getElementById('scanButton').addEventListener('click', startScanner);
+            document.getElementById('scanAgainButton').addEventListener('click', startScanner);
+            document.getElementById('revertButton').addEventListener('click', revertTicket);
+        }
+        
+        // התחלת סורק QR
+        function startScanner() {
+            if (isScanning) return;
+            isScanning = true;
+            
+            // איפוס תוצאת הסריקה הקודמת
+            document.getElementById('scanResult').className = 'scan-result';
+            document.getElementById('scanResult').innerHTML = '';
+            document.getElementById('scanAgainButton').style.display = 'none';
+            
+            // אתחול הסורק
+            document.getElementById('reader').innerHTML = '';
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { fps: 10, qrbox: { width: 250, height: 250 } }
+            );
+            
+            html5QrcodeScanner.render(onScanSuccess, onScanError);
+            
+            // הסתרת כפתור הסריקה בזמן הסריקה
+            document.getElementById('scanButton').style.display = 'none';
+        }
+        
+        // פונקציה הנקראת בסריקה מוצלחת
+        function onScanSuccess(decodedText) {
+            // עצירת הסורק
+            html5QrcodeScanner.clear().then(() => {
+                isScanning = false;
+                
+                // הצגת הודעת טעינה
+                document.getElementById('scanResult').className = 'scan-result';
+                document.getElementById('scanResult').innerHTML = '<div class="loader"><div class="spinner"></div></div> מעבד סריקה...';
+                
+                // עיבוד הקוד מול השרת (מדמה פניה לשרת)
+                setTimeout(() => {
+                    processQRCode(decodedText);
+                }, 500);
+            }).catch(error => {
+                console.error("שגיאה בעצירת הסורק:", error);
+                isScanning = false;
+            });
+        }
+        
+        // פונקציה הנקראת בשגיאת סריקה
+        function onScanError(error) {
+            // מתעלם משגיאות סריקה שוטפות
+            console.log("שגיאת סריקה:", error);
+        }
+        
+        // עיבוד קוד QR (מדמה פניה לשרת)
+        function processQRCode(code) {
+            // בדיקה אם הקוד תקין ולא נוצל
+            if (!code.startsWith('T')) {
+                displayScanError("קוד לא חוקי");
+                return;
+            }
+            
+            // פיצול הקוד לחלקים (דוגמה: T12345-3)
+            const parts = code.split('-');
+            if (parts.length !== 2) {
+                displayScanError("פורמט קוד לא תקין");
+                return;
+            }
+            
+            const ticketId = parts[0]; // T12345
+            const entryNumber = parseInt(parts[1]); // 3
+            
+            // בדיקה אם הכרטיס כבר נסרק בעבר (לצורך הדוגמה)
+            const usedCodes = JSON.parse(localStorage.getItem('usedCodes') || '[]');
+            if (usedCodes.includes(code)) {
+                displayScanError(`קוד זה כבר נוצל בעבר`);
+                return;
+            }
+            
+            // מדמה סימון הקוד כמשומש
+            usedCodes.push(code);
+            localStorage.setItem('usedCodes', JSON.stringify(usedCodes));
+            
+            // מציאת מספר כניסות שנותרו
+            const ticketsData = JSON.parse(localStorage.getItem('ticketsData') || '{}');
+            if (!ticketsData[ticketId]) {
+                ticketsData[ticketId] = {
+                    entriesLeft: 8, // כמות התחלתית עבור כרטיסייה
+                    childName: "לקוח " + ticketId.substring(1),
+                    ticketType: "כרטיסייה - 8 כניסות"
+                };
+            }
+            
+            // עדכון מספר הכניסות שנותרו
+            ticketsData[ticketId].entriesLeft = Math.max(0, ticketsData[ticketId].entriesLeft - 1);
+            localStorage.setItem('ticketsData', JSON.stringify(ticketsData));
+            
+            // הצגת תוצאת הסריקה
+            displayScanSuccess(ticketId, ticketsData[ticketId]);
+            
+            // עדכון סטטיסטיקות והיסטוריה
+            addToScanHistory(ticketId, code);
+            loadStats();
+        }
+        
+        // הצגת הצלחת סריקה
+        function displayScanSuccess(ticketId, ticketInfo) {
+            const scanResult = document.getElementById('scanResult');
+            scanResult.className = 'scan-result success';
+            
+            let html = '<h3><i class="fas fa-check-circle"></i> כניסה אושרה בהצלחה!</h3>';
+            html += '<div class="scan-info">';
+            html += `<p><strong>מזהה כרטיס:</strong> ${ticketId}</p>`;
+            html += `<p><strong>שם ילד:</strong> ${ticketInfo.childName}</p>`;
+            html += `<p><strong>סוג כרטיס:</strong> ${ticketInfo.ticketType}</p>`;
+            html += `<p><strong>כניסות שנותרו:</strong> ${ticketInfo.entriesLeft}</p>`;
+            html += '</div>';
+            
+            scanResult.innerHTML = html;
+            
+            // הצגת כפתור לסריקה חדשה
+            document.getElementById('scanAgainButton').style.display = 'block';
+            document.getElementById('scanButton').style.display = 'block';
+        }
+        
+        // הצגת שגיאת סריקה
+        function displayScanError(message) {
+            const scanResult = document.getElementById('scanResult');
+            scanResult.className = 'scan-result error';
+            scanResult.innerHTML = `<h3><i class="fas fa-times-circle"></i> שגיאה: ${message}</h3>`;
+            
+            // הצגת כפתור לסריקה חדשה
+            document.getElementById('scanAgainButton').style.display = 'block';
+            document.getElementById('scanButton').style.display = 'block';
+        }
+        
+        // הוספה להיסטוריית סריקות
+        function addToScanHistory(ticketId, code) {
+            const history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
+            
+            history.unshift({
+                timestamp: new Date().toISOString(),
+                ticketId: ticketId,
+                code: code,
+                user: localStorage.getItem('loggedInUser') || 'unknown'
+            });
+            
+            // שמירת רק 50 הסריקות האחרונות
+            if (history.length > 50) {
+                history.length = 50;
+            }
+            
+            localStorage.setItem('scanHistory', JSON.stringify(history));
+            
+            // טעינה מחדש של ההיסטוריה
+            loadScanHistory();
+        }
+        
+        // טעינת היסטוריית סריקות
+        function loadScanHistory() {
+            const historyContainer = document.getElementById('scanHistory');
+            const history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
+            
+            if (history.length === 0) {
+                historyContainer.innerHTML = '<p>אין סריקות קודמות</p>';
+                return;
+            }
+            
+            let html = '';
+            for (const scan of history.slice(0, 10)) { // הצגת 10 הסריקות האחרונות
+                const date = new Date(scan.timestamp);
+                const dateStr = date.toLocaleDateString('he-IL');
+                const timeStr = date.toLocaleTimeString('he-IL');
+                
+                html += `<div class="scan-item">`;
+                html += `<div class="scan-item-header">`;
+                html += `<div class="scan-item-name">כרטיס ${scan.ticketId}</div>`;
+                html += `<div class="scan-item-time">${dateStr} ${timeStr}</div>`;
+                html += `</div>`;
+                html += `<div class="scan-item-details">קוד: ${scan.code}</div>`;
+                html += `</div>`;
+            }
+            
+            historyContainer.innerHTML = html;
+        }
+        
+        // טעינת סטטיסטיקות
+        function loadStats() {
+            // קבלת היסטוריית סריקות
+            const history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
+            
+            // ספירת סריקות היום
+            const today = new Date().toDateString();
+            const todayScans = history.filter(scan => new Date(scan.timestamp).toDateString() === today).length;
+            
+            // חישוב כמות הילדים במתחם (כמות סריקות יומיות פחות יציאות)
+            // לצורך הדוגמה: נניח שכל הסריקות הן כניסות
+            const activeVisitors = todayScans;
+            
+            // עדכון הערכים בדף
+            document.getElementById('todayScans').textContent = todayScans;
+            document.getElementById('activeVisitors').textContent = activeVisitors;
+        }
+        
+        // החזרת כרטיס למצב פעיל
+        function revertTicket() {
+            const code = document.getElementById('revertCode').value.trim();
+            const resultElement = document.getElementById('revertResult');
+            
+            if (!code) {
+                resultElement.innerHTML = '<div class="error-message">נא להזין קוד</div>';
+                return;
+            }
+            
+            // בדיקה אם הקוד נסרק בעבר
+            const usedCodes = JSON.parse(localStorage.getItem('usedCodes') || '[]');
+            const index = usedCodes.indexOf(code);
+            
+            if (index === -1) {
+                resultElement.innerHTML = '<div class="error-message">קוד זה לא נסרק בעבר</div>';
+                return;
+            }
+            
+            // הסרת הקוד מרשימת הקודים ששומשו
+            usedCodes.splice(index, 1);
+            localStorage.setItem('usedCodes', JSON.stringify(usedCodes));
+            
+            // עדכון מספר הכניסות שנותרו
+            const parts = code.split('-');
+            if (parts.length === 2) {
+                const ticketId = parts[0];
+                const ticketsData = JSON.parse(localStorage.getItem('ticketsData') || '{}');
+                
+                if (ticketsData[ticketId]) {
+                    ticketsData[ticketId].entriesLeft += 1;
+                    localStorage.setItem('ticketsData', JSON.stringify(ticketsData));
+                }
+            }
+            
+            // הוספת רישום של הפעולה להיסטוריה
+            const history = JSON.parse(localStorage.getItem('scanHistory') || '[]');
+            history.unshift({
+                timestamp: new Date().toISOString(),
+                ticketId: parts[0],
+                code: code,
+                user: localStorage.getItem('loggedInUser') || 'unknown',
+                action: 'revert'
+            });
+            
+            localStorage.setItem('scanHistory', JSON.stringify(history));
+            
+            // עדכון הדף
+            resultElement.innerHTML = '<div class="success-message">הקוד הוחזר למצב פעיל בהצלחה</div>';
+            document.getElementById('revertCode').value = '';
+            
+            loadStats();
+            loadScanHistory();
+        }
+    </script>
+</body>
+</html>

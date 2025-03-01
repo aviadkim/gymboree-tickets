@@ -73,12 +73,44 @@
         }
         
         .qr-container {
+            margin: 20px 0;
+        }
+        
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .qr-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        
+        .qr-label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--secondary);
+        }
+        
+        .qr-code {
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .single-qr-container {
             display: flex;
             justify-content: center;
             margin: 20px 0;
         }
         
-        #qrcode {
+        #qrcode, .qr-code-item {
             padding: 15px;
             background: white;
             border-radius: 10px;
@@ -238,6 +270,10 @@
                 margin: 10px;
                 width: calc(100% - 20px);
             }
+            
+            .qr-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         /* תמיכה במסכים קטנים */
@@ -266,6 +302,50 @@
                 transform: translateY(100vh) rotate(360deg);
             }
         }
+        
+        .tab-container {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .tab.active {
+            font-weight: bold;
+            border-bottom: 2px solid var(--accent);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .used-qr {
+            opacity: 0.3;
+            position: relative;
+        }
+        
+        .used-qr::after {
+            content: "נוצל";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(244, 67, 54, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -287,27 +367,37 @@
                     <div class="entries-text">כניסות שנותרו</div>
                 </div>
                 
-                <div class="qr-container">
-                    <div id="qrcode"></div>
+                <div class="tab-container">
+                    <div class="tab active" data-tab="info">פרטי כרטיס</div>
+                    <div class="tab" data-tab="qr-codes">קודי כניסה</div>
                 </div>
                 
-                <div class="ticket-info">
-                    <div class="info-row">
-                        <div class="info-label">שם:</div>
-                        <div class="info-value" id="child-name">מיכל כהן</div>
+                <div id="info-tab" class="tab-content active">
+                    <div class="ticket-info">
+                        <div class="info-row">
+                            <div class="info-label">שם:</div>
+                            <div class="info-value" id="child-name">מיכל כהן</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">מספר כרטיס:</div>
+                            <div class="info-value" id="ticket-id">T1002</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">תאריך רכישה:</div>
+                            <div class="info-value" id="purchase-date">25/02/2025</div>
+                        </div>
                     </div>
-                    <div class="info-row">
-                        <div class="info-label">מספר כרטיס:</div>
-                        <div class="info-value" id="ticket-id">T1002</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">תאריך רכישה:</div>
-                        <div class="info-value" id="purchase-date">25/02/2025</div>
+                    
+                    <div class="valid-until" id="valid-until">
+                        בתוקף עד 25/02/2026
                     </div>
                 </div>
                 
-                <div class="valid-until" id="valid-until">
-                    בתוקף עד 25/02/2026
+                <div id="qr-codes-tab" class="tab-content">
+                    <p style="text-align: center; margin-bottom: 15px;">הציגו קוד סריקה אחד בכניסה לג'ימבורי</p>
+                    <div id="qr-container" class="qr-grid">
+                        <!-- כאן ייווצרו קודי ה-QR -->
+                    </div>
                 </div>
             </div>
             
@@ -362,23 +452,109 @@
         validUntil.setFullYear(validUntil.getFullYear() + 1);
         document.getElementById('valid-until').textContent = 'בתוקף עד ' + validUntil.toLocaleDateString('he-IL');
         
-        // יצירת קוד QR
-        var qrCodeContent = `GYMBOREE-${ticketId}-${ticketType}-${entriesLeft}`;
-        var qrcode = new QRCode(document.getElementById("qrcode"), {
-            text: qrCodeContent,
-            width: 180,
-            height: 180,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
+        // בדיקה אם זה כרטיס בודד או כרטיסייה
+        const isMultiTicket = ticketType.includes('כרטיסייה') || !ticketType.includes('בודד');
+        const totalEntries = isMultiTicket ? 8 : 1;
+        const usedEntries = totalEntries - entriesLeft;
         
-        // מילוי היסטוריית כניסות לדוגמה (במערכת אמיתית יגיע מהשרת)
+        // יצירת קודי QR עבור כל הכניסות
+        function generateQRCodes() {
+            const qrContainer = document.getElementById('qr-container');
+            qrContainer.innerHTML = '';
+            
+            // בדיקה אם זה כרטיס בודד
+            if (!isMultiTicket) {
+                // אם זה כרטיס בודד, יוצר קוד אחד
+                const qrItemDiv = document.createElement('div');
+                qrItemDiv.className = 'single-qr-container';
+                
+                const qrDiv = document.createElement('div');
+                qrDiv.id = "qrcode";
+                
+                if (entriesLeft === 0) {
+                    qrDiv.className = 'used-qr';
+                }
+                
+                qrItemDiv.appendChild(qrDiv);
+                qrContainer.appendChild(qrItemDiv);
+                
+                // יצירת קוד QR
+                const qrCodeContent = `${ticketId}-1`;
+                new QRCode(qrDiv, {
+                    text: qrCodeContent,
+                    width: 180,
+                    height: 180,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            } else {
+                // אם זה כרטיסייה, יוצר 8 קודים
+                for (let i = 1; i <= 8; i++) {
+                    const qrItemDiv = document.createElement('div');
+                    qrItemDiv.className = 'qr-item';
+                    
+                    const qrLabel = document.createElement('div');
+                    qrLabel.className = 'qr-label';
+                    qrLabel.textContent = `כניסה ${i}`;
+                    
+                    const qrDiv = document.createElement('div');
+                    qrDiv.className = 'qr-code-item';
+                    qrDiv.id = `qrcode-${i}`;
+                    
+                    // אם הקוד כבר נוצל, מוסיף סימון
+                    if (i <= usedEntries) {
+                        qrItemDiv.classList.add('used-qr');
+                    }
+                    
+                    qrItemDiv.appendChild(qrLabel);
+                    qrItemDiv.appendChild(qrDiv);
+                    qrContainer.appendChild(qrItemDiv);
+                    
+                    // יצירת קוד QR
+                    const qrCodeContent = `${ticketId}-${i}`;
+                    new QRCode(qrDiv, {
+                        text: qrCodeContent,
+                        width: 120,
+                        height: 120,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                }
+            }
+        }
+        
+        // ניהול לשוניות
+        function initTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    // החלפת הלשונית הפעילה
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // החלפת התוכן המוצג
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === `${tabId}-tab`) {
+                            content.classList.add('active');
+                        }
+                    });
+                });
+            });
+        }
+        
+        // מילוי היסטוריית כניסות
         function fillEntryHistory() {
             var entryList = document.getElementById('entry-list');
             
             // אם זה כרטיס בודד
-            if (ticketType.includes('בודד')) {
+            if (!isMultiTicket) {
                 if (entriesLeft === 0) {
                     // נוצל
                     var entryDate = new Date();
@@ -433,9 +609,6 @@
             }
         }
         
-        // הפעלת מילוי היסטוריית כניסות
-        fillEntryHistory();
-        
         // אפקט קונפטי לכרטיס חדש (רק אם זה כרטיס פעיל וחדש)
         function createConfetti() {
             if (entriesLeft > 0 && (ticketType.includes('בודד') || entriesLeft === 8)) {
@@ -473,8 +646,13 @@
             }
         }
         
-        // הפעלת אפקט הקונפטי
-        window.addEventListener('load', createConfetti);
+        // אתחול הדף
+        window.onload = function() {
+            initTabs();
+            generateQRCodes();
+            fillEntryHistory();
+            createConfetti();
+        };
     </script>
 </body>
 </html>

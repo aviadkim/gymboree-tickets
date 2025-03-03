@@ -219,50 +219,30 @@
             color: white;
         }
         
-        .ticket-entry-history {
-            margin-top: 20px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            overflow: hidden;
-        }
-        
-        .entry-history-header {
-            background-color: var(--primary);
-            color: white;
-            padding: 15px 20px;
-            font-weight: bold;
-        }
-        
-        .entry-list {
-            padding: 10px 0;
-        }
-        
-        .entry-item {
+        .tab-container {
             display: flex;
-            justify-content: space-between;
-            padding: 12px 20px;
-            border-bottom: 1px solid #eee;
+            margin-bottom: 15px;
         }
         
-        .entry-item:last-child {
-            border-bottom: none;
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            flex: 1;
+            text-align: center;
         }
         
-        .entry-date {
+        .tab.active {
             font-weight: bold;
+            border-bottom: 2px solid var(--accent);
         }
         
-        .entry-time {
-            color: #666;
+        .tab-content {
+            display: none;
         }
         
-        .entry-item.unused {
-            color: #999;
-        }
-        
-        .entry-item.unused .entry-date {
-            font-weight: normal;
+        .tab-content.active {
+            display: block;
         }
         
         @media (max-width: 600px) {
@@ -302,50 +282,6 @@
                 transform: translateY(100vh) rotate(360deg);
             }
         }
-        
-        .tab-container {
-            display: flex;
-            margin-bottom: 15px;
-        }
-        
-        .tab {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 2px solid #ddd;
-            flex: 1;
-            text-align: center;
-        }
-        
-        .tab.active {
-            font-weight: bold;
-            border-bottom: 2px solid var(--accent);
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .used-qr {
-            opacity: 0.3;
-            position: relative;
-        }
-        
-        .used-qr::after {
-            content: "נוצל";
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(244, 67, 54, 0.8);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
@@ -362,7 +298,7 @@
             </div>
             
             <div class="ticket-body">
-                <div class="entries-left" style="display: none;">
+                <div class="entries-left">
                     <div class="entries-number" id="entries-count">8</div>
                     <div class="entries-text">כניסות שנותרו</div>
                 </div>
@@ -403,15 +339,6 @@
             
             <div class="ticket-footer">
                 יש להציג את הכרטיס בכניסה לג'ימבורי
-            </div>
-        </div>
-        
-        <div class="ticket-entry-history" id="entry-history">
-            <div class="entry-history-header">
-                היסטוריית כניסות
-            </div>
-            <div class="entry-list" id="entry-list">
-                <!-- יתמלא דינמית -->
             </div>
         </div>
     </div>
@@ -455,7 +382,6 @@
         // בדיקה אם זה כרטיס בודד או כרטיסייה
         const isMultiTicket = ticketType.includes('כרטיסייה') || !ticketType.includes('בודד');
         const totalEntries = isMultiTicket ? 8 : 1;
-        const usedEntries = totalEntries - entriesLeft;
         
         // יצירת קודי QR עבור כל הכניסות
         function generateQRCodes() {
@@ -470,10 +396,6 @@
                 
                 const qrDiv = document.createElement('div');
                 qrDiv.id = "qrcode";
-                
-                if (entriesLeft === 0) {
-                    qrDiv.className = 'used-qr';
-                }
                 
                 qrItemDiv.appendChild(qrDiv);
                 qrContainer.appendChild(qrItemDiv);
@@ -491,36 +413,45 @@
             } else {
                 // אם זה כרטיסייה, יוצר 8 קודים
                 for (let i = 1; i <= 8; i++) {
-                    const qrItemDiv = document.createElement('div');
-                    qrItemDiv.className = 'qr-item';
-                    
-                    const qrLabel = document.createElement('div');
-                    qrLabel.className = 'qr-label';
-                    qrLabel.textContent = `כניסה ${i}`;
-                    
-                    const qrDiv = document.createElement('div');
-                    qrDiv.className = 'qr-code-item';
-                    qrDiv.id = `qrcode-${i}`;
-                    
-                    // אם הקוד כבר נוצל, מוסיף סימון
-                    if (i <= usedEntries) {
-                        qrItemDiv.classList.add('used-qr');
+                    // רק אם יש עוד כניסות פעילות (entriesLeft > 0) ומספר הכניסה היא אחת מהכניסות הפעילות שנותרו
+                    if (i > totalEntries - entriesLeft) {
+                        const qrItemDiv = document.createElement('div');
+                        qrItemDiv.className = 'qr-item';
+                        
+                        const qrLabel = document.createElement('div');
+                        qrLabel.className = 'qr-label';
+                        qrLabel.textContent = `כניסה ${i}`;
+                        
+                        const qrDiv = document.createElement('div');
+                        qrDiv.className = 'qr-code-item';
+                        qrDiv.id = `qrcode-${i}`;
+                        
+                        qrItemDiv.appendChild(qrLabel);
+                        qrItemDiv.appendChild(qrDiv);
+                        qrContainer.appendChild(qrItemDiv);
+                        
+                        // יצירת קוד QR
+                        const qrCodeContent = `${ticketId}-${i}`;
+                        new QRCode(qrDiv, {
+                            text: qrCodeContent,
+                            width: 120,
+                            height: 120,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
                     }
-                    
-                    qrItemDiv.appendChild(qrLabel);
-                    qrItemDiv.appendChild(qrDiv);
-                    qrContainer.appendChild(qrItemDiv);
-                    
-                    // יצירת קוד QR
-                    const qrCodeContent = `${ticketId}-${i}`;
-                    new QRCode(qrDiv, {
-                        text: qrCodeContent,
-                        width: 120,
-                        height: 120,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.H
-                    });
+                }
+                
+                // אם אין כניסות פעילות בכלל, מציג הודעה
+                if (entriesLeft <= 0) {
+                    const noEntriesMsg = document.createElement('div');
+                    noEntriesMsg.style.textAlign = 'center';
+                    noEntriesMsg.style.padding = '20px';
+                    noEntriesMsg.style.color = '#F44336';
+                    noEntriesMsg.style.fontWeight = 'bold';
+                    noEntriesMsg.textContent = 'הכרטיס נוצל במלואו';
+                    qrContainer.appendChild(noEntriesMsg);
                 }
             }
         }
@@ -547,66 +478,6 @@
                     });
                 });
             });
-        }
-        
-        // מילוי היסטוריית כניסות
-        function fillEntryHistory() {
-            var entryList = document.getElementById('entry-list');
-            
-            // אם זה כרטיס בודד
-            if (!isMultiTicket) {
-                if (entriesLeft === 0) {
-                    // נוצל
-                    var entryDate = new Date();
-                    entryDate.setDate(entryDate.getDate() - Math.floor(Math.random() * 7));
-                    
-                    var entryItem = document.createElement('div');
-                    entryItem.className = 'entry-item';
-                    entryItem.innerHTML = `
-                        <div class="entry-date">${entryDate.toLocaleDateString('he-IL')}</div>
-                        <div class="entry-time">${entryDate.getHours()}:${String(entryDate.getMinutes()).padStart(2, '0')}</div>
-                    `;
-                    entryList.appendChild(entryItem);
-                } else {
-                    // לא נוצל
-                    var entryItem = document.createElement('div');
-                    entryItem.className = 'entry-item unused';
-                    entryItem.innerHTML = `
-                        <div class="entry-date">טרם נוצל</div>
-                        <div class="entry-time"></div>
-                    `;
-                    entryList.appendChild(entryItem);
-                }
-            } else {
-                // כרטיסייה
-                var totalEntries = 8;
-                var usedEntries = totalEntries - entriesLeft;
-                
-                for (var i = 0; i < totalEntries; i++) {
-                    var entryItem = document.createElement('div');
-                    
-                    if (i < usedEntries) {
-                        // כניסה שנוצלה
-                        var entryDate = new Date();
-                        entryDate.setDate(entryDate.getDate() - (usedEntries - i));
-                        
-                        entryItem.className = 'entry-item';
-                        entryItem.innerHTML = `
-                            <div class="entry-date">כניסה ${i+1} - ${entryDate.toLocaleDateString('he-IL')}</div>
-                            <div class="entry-time">${entryDate.getHours()}:${String(entryDate.getMinutes()).padStart(2, '0')}</div>
-                        `;
-                    } else {
-                        // כניסה שטרם נוצלה
-                        entryItem.className = 'entry-item unused';
-                        entryItem.innerHTML = `
-                            <div class="entry-date">כניסה ${i+1} - טרם נוצל</div>
-                            <div class="entry-time"></div>
-                        `;
-                    }
-                    
-                    entryList.appendChild(entryItem);
-                }
-            }
         }
         
         // אפקט קונפטי לכרטיס חדש (רק אם זה כרטיס פעיל וחדש)
@@ -650,7 +521,6 @@
         window.onload = function() {
             initTabs();
             generateQRCodes();
-            fillEntryHistory();
             createConfetti();
         };
     </script>
